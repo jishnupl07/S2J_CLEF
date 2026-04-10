@@ -1,0 +1,116 @@
+PROJECT: Next Pictogram Prediction (ImageCLEF ToPicto)
+
+--------------------------------------------------
+1. DATA ACCESS - DONE
+--------------------------------------------------
+- Obtain dataset (JSON)
+- Files include:
+  - Training set 
+  - Test set
+
+--------------------------------------------------
+2. DATA UNDERSTANDING
+--------------------------------------------------
+Each sample contains:
+- src   → Original English sentence (optional)
+- tgt   → Pictogram token sequence (main input)
+- pictos → Numeric IDs aligned with tgt
+
+Goal:
+- Predict next token given partial tgt sequence
+
+--------------------------------------------------
+3. DATA PREPROCESSING
+--------------------------------------------------
+- Load JSON data
+- Extract tgt sequences
+- Tokenize:
+    tokens = tgt.split()
+
+- Build vocabulary:
+    token → index mapping
+
+--------------------------------------------------
+4. TRAINING DATA CREATION
+--------------------------------------------------
+Convert each sequence into multiple samples:
+
+For tokens = [w1, w2, w3, w4]
+
+Generate:
+    Input: [w1]           → Target: w2
+    Input: [w1, w2]       → Target: w3
+    Input: [w1, w2, w3]   → Target: w4
+
+- Store as (input_sequence, next_token)
+
+--------------------------------------------------
+5. MODEL SELECTION
+--------------------------------------------------
+Baseline:
+- N-gram model
+
+Recommended:
+- LSTM / GRU (sequence model)
+
+Advanced:
+- Transformer (GPT-style)
+
+--------------------------------------------------
+6. MODEL INPUT/OUTPUT
+--------------------------------------------------
+Input:
+- Sequence of token IDs
+
+Output:
+- Probability distribution over vocabulary
+
+Objective:
+- Learn P(next_token | previous_tokens)
+
+--------------------------------------------------
+7. TRAINING
+--------------------------------------------------
+- Loss function: Cross-entropy
+- Use padding for variable-length sequences
+- Train on all prefix-target pairs
+- Validate on held-out data
+
+--------------------------------------------------
+8. INFERENCE (TESTING)
+--------------------------------------------------
+Given:
+    tgt = "there_is now an"
+
+Steps:
+- Tokenize input
+- Convert to IDs
+- Feed into model
+- Predict next token:
+    output = argmax(probabilities)
+
+--------------------------------------------------
+9. EVALUATION
+--------------------------------------------------
+- Metric: Accuracy (correct next token prediction)
+- Compare predicted token with ground truth
+
+--------------------------------------------------
+10. OPTIONAL IMPROVEMENTS
+--------------------------------------------------
+- Use src (English sentence) as additional input
+- Pretrained embeddings
+- Transformer-based architecture
+- Beam search instead of greedy decoding
+
+--------------------------------------------------
+11. FINAL OUTPUT
+--------------------------------------------------
+- For each test sample:
+    Output predicted next token
+
+- Format as required for submission
+
+--------------------------------------------------
+END
+--------------------------------------------------
