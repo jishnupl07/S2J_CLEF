@@ -84,7 +84,7 @@ def get_scores(context_tokens, src_tokens):
 
             scores[word] = unigram_counts[word] / total
 
-    # 🔥 BONUS: boost words appearing in src
+    # BONUS: boost words appearing in src
     for word in scores:
         if word in src_tokens:
             scores[word] *= 1.5   # tweakable weight
@@ -122,9 +122,7 @@ with open(TEST_FILE, "r", encoding="utf-8") as f:
 # -------- SAVE SUBMISSION --------
 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
     json.dump(results, f, ensure_ascii=False, indent=2)
-
-print("Saved submission to run.json")
-
+    
 # -------- SANITY CHECK --------
 print("Total predictions:", len(results))
 print("Sample:", results[0])
