@@ -1,0 +1,2 @@
+# No external dependencies required.
+# main.py uses only Python standard library (json, collections, os).

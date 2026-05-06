@@ -1,0 +1,237 @@
+🚀 Project Workflow: Pictogram Sequence Prediction
+1. 🧠 Problem Understanding
+
+You are solving a sequence prediction (language modeling) problem:
+
+Input: Partial pictogram token sequence
+→ "there_is now an"
+Output: Next token
+→ "bus_station"
+
+This is essentially:
+
+Next-token prediction over a constrained vocabulary (pictogram keywords)
+
+Traiing and testing json files are inside dataset directory
+
+2. 📦 Data Understanding & Constraints
+Dataset Structure
+
+Each training sample:
+
+{
+  "id": "...",
+  "src": "there is now a bus station",
+  "tgt": "there_is now an bus_station",
+  "pictos": [9001, 32747, 8474, 36291]
+}
+Key Constraints to Handle
+✅ 1. Token Alignment Constraint
+tgt[i] ↔ pictos[i]
+Must preserve alignment if using both
+
+👉 Important if you:
+
+Use multi-modal learning (token + pictogram ID)
+Or want embedding sharing
+✅ 2. Sequential Dependency
+Order matters (language structure)
+Example:
+"there_is now an" → likely noun next
+Grammar + semantics both matter
+
+👉 Must use sequence models (NOT bag-of-words)
+
+✅ 3. Vocabulary Constraint
+Output must be from fixed pictogram vocabulary
+No free text generation
+
+👉 Use:
+
+Softmax over vocabulary
+OR candidate ranking
+✅ 4. Test Constraint
+Test input = sequence missing last token
+Predict:
+Top 1 → for accuracy
+Top 10 → for ranking metric
+✅ 5. Submission Constraint
+
+Your output JSON MUST:
+
+Have exactly 1986 entries
+Preserve same IDs
+Include:
+{
+  "id": "...",
+  "candidates": ["token1", "token2", ..., "token10"]
+}
+✅ 6. Evaluation Constraints
+(a) Top-N Accuracy
+Checks if correct answer ∈ top N
+N = 1, 3, 5, 10
+(b) Semantic Similarity
+Uses:
+all-MiniLM-L6-v2 embeddings
+Rewards:
+"city" instead of "metropolis"
+
+👉 So model should:
+
+Capture meaning, not just frequency
+3. 🏗️ Data Preprocessing Pipeline
+
+Step 1: Tokenization
+Split tgt by space
+Build vocabulary:
+vocab = {token: index}
+
+Step 2: Create Training Pairs
+
+Convert sequence into next-token format:
+
+Example:
+
+Input:  there_is
+Target: now
+
+Input:  there_is now
+Target: an
+
+Input:  there_is now an
+Target: bus_station
+Step 3: Padding
+Pad sequences to fixed length
+Use:
+<PAD>
+<SOS> (optional)
+Step 4: Train/Validation Split
+e.g. 90 / 10
+
+4. 🤖 Model Selection (Best Approach)
+🔥 Recommended Model: Transformer-based Language Model
+Option A: Fine-tuned BERT (Best for semantics)
+Input: sequence of tokens
+Output: probability over vocabulary
+
+👉 Modify BERT:
+
+Use masked language modeling head OR
+Use classification head on last token
+Option B: GPT-style (Autoregressive) ⭐ BEST CHOICE
+Predict next token directly
+Natural fit for task
+
+Architecture:
+
+Embedding → Transformer Decoder → Softmax
+Option C: LSTM (Baseline)
+Simpler but weaker
+Good for comparison
+
+5. 🧩 Model Architecture (Recommended)
+Input:
+[there_is, now, an]
+Pipeline:
+Embedding Layer
+   ↓
+Positional Encoding
+   ↓
+Transformer Decoder (or GPT)
+   ↓
+Linear Layer
+   ↓
+Softmax over vocab
+Loss Function:
+CrossEntropyLoss
+
+6. 📊 Training Strategy
+Key Points:
+Batch size: 32–128
+Optimizer: AdamW
+LR: 1e-4 (tune)
+Epochs: 5–15
+Regularization:
+Dropout
+Early stopping
+
+7. 🎯 Prediction Pipeline
+
+For each test sample:
+
+Step 1:
+
+Input:
+
+there_is now an
+Step 2:
+
+Model outputs:
+
+Probability distribution over vocab
+Step 3:
+
+Extract:
+
+Top 10 tokens
+
+8. 📤 Submission Generator
+Output Format:
+
+[
+  {
+    "id": "sample1",
+    "candidates": ["bus_station", "train", "city", ...]
+  }
+]
+
+Important Rules:
+Order matters → most likely first
+Max = 10 candidates
+
+9. 📈 Improving Performance
+🔥 Techniques
+
+1. Use src field
+Gives full English sentence
+Helps semantic understanding
+
+👉 Use dual input:
+[Text Encoder] + [Token Sequence]
+
+2. Semantic Re-ranking
+After prediction:
+Use:
+all-MiniLM-L6-v2
+Re-rank candidates based on similarity to context
+
+3. Data Augmentation
+Shuffle or mask tokens
+Generate additional sequences
+
+4. Ensemble Models
+Combine:
+Transformer + LSTM
+
+10. 🧪 Evaluation Pipeline
+Compute:
+Top-1 accuracy
+Top-3 / Top-5 / Top-10
+Cosine similarity
+
+11. 🧱 Final System Architecture
+          Training Data
+                ↓
+        Preprocessing
+                ↓
+     Sequence Generation
+                ↓
+         Transformer LM
+                ↓
+        Probability Output
+                ↓
+        Top-K Selection
+                ↓
+        (Optional Re-rank)
+                ↓
+         JSON Submission

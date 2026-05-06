@@ -1,0 +1,195 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║            PICTOGRAM SEQUENCE PREDICTION — PROJECT SUMMARY                   ║
+║            ImageCLEF 2026 · Next-Token Prediction Task                       ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+1. PROBLEM STATEMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+  Task:   Given a partial sequence of pictogram tokens, predict the next token.
+
+  Input:  "there_is now an"      →  Output: "bus_station"
+
+  This is a constrained next-token prediction problem where:
+    • The output vocabulary is fixed (pictogram keywords only).
+    • Predictions are ranked — top 10 candidates per sample.
+    • Evaluation uses both exact-match accuracy (Top-1/3/5/10)
+      and semantic similarity (all-MiniLM-L6-v2 cosine distance).
+
+
+2. DATASET
+═══════════════════════════════════════════════════════════════════════════════
+
+  Location:   dataset/
+
+  ┌─────────────────────────┬──────────────┬──────────────────────────────────┐
+  │ File                    │ Samples      │ Role                             │
+  ├─────────────────────────┼──────────────┼──────────────────────────────────┤
+  │ train_next_picto.json   │ 63,675       │ Training data                    │
+  │ test_next_picto.json    │  1,986       │ Test data (last token withheld)   │
+  └─────────────────────────┴──────────────┴──────────────────────────────────┘
+
+  Each sample contains:
+    • id      — unique identifier
+    • src     — natural-language sentence (English)
+    • tgt     — pictogram token sequence (space-separated)
+    • pictos  — pictogram IDs aligned 1:1 with tgt tokens
+
+
+3. SOLUTION APPROACH
+═══════════════════════════════════════════════════════════════════════════════
+
+  Model:  Backoff N-Gram Ensemble with Laplace Smoothing
+
+  The pipeline uses a statistical language model that backs off through
+  three levels of context:
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  Level 1 — TRIGRAM  (primary)                                      │
+  │  Context: last 2 tokens  →  P(w | w_{i-2}, w_{i-1})               │
+  │  Laplace-smoothed over full vocabulary                             │
+  ├─────────────────────────────────────────────────────────────────────┤
+  │  Level 2 — BIGRAM   (fallback)                                     │
+  │  Context: last 1 token   →  P(w | w_{i-1})                        │
+  │  Used when trigram context is unseen                               │
+  ├─────────────────────────────────────────────────────────────────────┤
+  │  Level 3 — UNIGRAM  (final fallback)                               │
+  │  No context              →  P(w)                                   │
+  │  Global token frequencies                                          │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Additional signal:
+    • Source-word boosting — tokens appearing in the src field receive
+      a 1.5× score multiplier, leveraging the natural-language input.
+
+  Design rationale:
+    • Runs in seconds on CPU (no GPU required).
+    • Zero external dependencies — Python standard library only.
+    • Captures strong sequential patterns from 63K training sequences.
+
+
+4. PIPELINE
+═══════════════════════════════════════════════════════════════════════════════
+
+  ┌────────────────────┐
+  │  train_next_picto  │
+  │      .json         │
+  └────────┬───────────┘
+           │  Load & tokenize tgt sequences
+           ▼
+  ┌────────────────────┐
+  │  Build n-gram      │    unigram_counts : Counter
+  │  frequency tables  │    bigram_counts  : {w₁ → Counter}
+  │                    │    trigram_counts : {(w₁,w₂) → Counter}
+  └────────┬───────────┘
+           │
+           ▼
+  ┌────────────────────┐
+  │  test_next_picto   │
+  │      .json         │
+  └────────┬───────────┘
+           │  For each test sample:
+           │    1. Prepend <s><s> to context
+           │    2. Score every vocab token via trigram / bigram / unigram
+           │    3. Boost tokens found in src
+           │    4. Take top 10 by score
+           ▼
+  ┌────────────────────┐
+  │  submission.json   │    1,986 entries × 10 candidates
+  └────────────────────┘
+
+
+5. OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════════════════════
+
+  File:   submission.json
+
+  [
+    {
+      "id": "common_voice_fr_h3zlwha1.mp3",
+      "candidates": [
+        "family", "of", "by", "woman", "little_girl",
+        "house", "new", "and", "chapel", "schoolhouse"
+      ]
+    },
+    ...
+  ]
+
+  Constraints satisfied:
+    ✓  Exactly 1,986 entries (matches test set size)
+    ✓  Each entry has "id" and "candidates" fields
+    ✓  10 candidates per entry, ordered by descending likelihood
+    ✓  All candidate tokens belong to the training vocabulary
+    ✓  Valid JSON
+
+
+6. PROJECT FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+  IMGCLEF/
+  ├── dataset/
+  │   ├── train_next_picto.json ··· Training data (63,675 samples)
+  │   └── test_next_picto.json  ··· Test data (1,986 samples)
+  ├── main.py ·················· Core script: load → train → predict → save
+  ├── submission.json ·········· Final output (1,986 × 10 candidates)
+  ├── workflow.txt ············· Task specification & design notes
+  ├── requirements.txt ········· Dependencies (none — stdlib only)
+  ├── README.md ················ Documentation
+  └── PROJECT_SUMMARY.txt ····· This file
+
+
+7. KEY STATISTICS
+═══════════════════════════════════════════════════════════════════════════════
+
+  ┌──────────────────────────┬──────────────┐
+  │ Metric                   │ Value        │
+  ├──────────────────────────┼──────────────┤
+  │ Training samples         │ 63,675       │
+  │ Test samples             │  1,986       │
+  │ Vocabulary size          │ ~6,841       │
+  │ Trigram contexts learned │ ~79,000+     │
+  │ Bigram contexts learned  │ ~6,000+      │
+  │ Predictions generated    │  1,986       │
+  │ Candidates per entry     │ 10           │
+  ├──────────────────────────┼──────────────┤
+  │ External dependencies    │ None         │
+  │ Runtime (approx.)        │ ~10–15 sec   │
+  │ Memory (approx.)         │ < 100 MB     │
+  │ GPU required             │ No           │
+  └──────────────────────────┴──────────────┘
+
+
+8. HOW TO RUN
+═══════════════════════════════════════════════════════════════════════════════
+
+  python main.py
+
+  This single command:
+    1. Loads training data from dataset/train_next_picto.json
+    2. Builds unigram, bigram, and trigram frequency tables
+    3. Loads test data from dataset/test_next_picto.json
+    4. Generates top-10 predictions for each test sample
+    5. Writes results to submission.json
+
+
+9. EVALUATION CRITERIA
+═══════════════════════════════════════════════════════════════════════════════
+
+  The competition evaluates submissions on:
+
+  (a) Top-N Accuracy (N = 1, 3, 5, 10)
+      → Is the ground-truth token among the top N candidates?
+
+  (b) Semantic Similarity
+      → Cosine similarity between predicted and ground-truth tokens
+         using all-MiniLM-L6-v2 sentence embeddings.
+      → Rewards semantically close predictions (e.g., "city" ≈ "town").
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  Generated: May 6, 2026
+  Status:    Complete — submission.json ready for upload
+═══════════════════════════════════════════════════════════════════════════════
